@@ -1,33 +1,28 @@
-use std::{any::TypeId, collections::HashMap, sync::{Arc, Mutex}};
+use std::{any::TypeId, collections::HashMap, sync::Mutex};
 
-use crate::renderable::Renderable;
+use crate::{get_type::GetType, render_context::{self, RenderContext}, renderable::Renderable};
 use lazy_static::lazy_static;
 
 pub struct RenderData{
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
-    pub bind_group: wgpu::BindGroup,
+    pub bind_groups: Vec<wgpu::BindGroup>,
     pub num_indices: u32,
 }
 
 #[derive(Default)]
 pub struct RenderDataCache{
-    data: HashMap<TypeId, Arc<RenderData>>,
+    data: HashMap<TypeId, RenderData>,
 }
 
 impl RenderDataCache{
-    pub fn get_data<T>(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, bind_group_layout: &wgpu::BindGroupLayout)->Arc<RenderData>
-    where
-        T: Renderable + Default + 'static,
+    pub fn get_data<T: Renderable + GetType + ?Sized>(&mut self, renderable: &T, render_context: &RenderContext)->&RenderData
     {
-        if let Some(data) = self.data.get(&TypeId::of::<T>()){
-            data.clone()
-        } else {
-            let generator = T::default();
-            let data = generator.load_data(device, queue, bind_group_layout);
-            self.data.insert(TypeId::of::<T>(), Arc::new(data));
-            self.data.get(&TypeId::of::<T>()).unwrap().clone()
-        }
+        let type_id = renderable.get_type();
+        self.data.entry(type_id).or_insert_with(||{
+            println!("Creating render data");
+            renderable.load_data(render_context)
+        })
     }
 }
 

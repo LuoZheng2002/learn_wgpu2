@@ -1,13 +1,21 @@
+use wgpu::util::DeviceExt;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
+use crate::camera::Camera;
+use crate::camera_uniform::CameraUniform;
+use crate::input_context::InputContext;
 use crate::render_context::RenderContext;
+use crate::renderable::{Polygon, RENDERABLES};
+use crate::state::State;
 
 #[derive(Default)]
 pub struct App {
     render_context: Option<RenderContext>,
+    input_context: InputContext,
+    state: State,
 }
 
 impl App {
@@ -24,6 +32,8 @@ impl<'a> ApplicationHandler for App {
         let window = event_loop
             .create_window(Window::default_attributes())
             .unwrap();
+        self.render_context = Some(RenderContext::new(window));
+        RENDERABLES.lock().unwrap().push(Box::new(Polygon));
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {

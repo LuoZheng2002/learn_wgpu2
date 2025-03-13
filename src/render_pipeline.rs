@@ -1,14 +1,13 @@
-use std::{any::TypeId, collections::HashMap, rc::Rc, sync::{Arc, Mutex}};
+use std::{any::TypeId, collections::HashMap, sync::{Arc, Mutex}};
 
 use wgpu::{Device, RenderPipeline, SurfaceConfiguration};
 
-use crate::{texture::Texture, vertex::Vertex};
+use crate::{render_context::{self, RenderContext}, texture::Texture, vertex::Vertex};
 use lazy_static::lazy_static;
 
 /// Trait that must be implemented by custom pipeline types.
 pub trait ToPipeline {
-    fn create_pipeline(device: &Device, config: &SurfaceConfiguration) -> RenderPipeline;
-    fn get_bind_group_layout(device: &Device) -> wgpu::BindGroupLayout;
+    fn create_pipeline(render_context: &RenderContext) -> RenderPipeline;
 }
 
 /// Cache structure that holds the pipelines.
@@ -19,20 +18,16 @@ pub struct PipelineCache {
 
 impl PipelineCache{
     /// Generic method to get a pipeline or create it if it's not in the cache.
-    pub fn get_pipeline<T>(&mut self, device: &Device, config: &SurfaceConfiguration) -> Arc<RenderPipeline>
+    pub fn get_pipeline<T>(&mut self, render_context: &RenderContext) -> Arc<RenderPipeline>
     where
         T: ToPipeline + 'static,
     {
-        // Check if the pipeline already exists in the cache.
-        if let Some(pipeline) = self.pipelines.get(&TypeId::of::<T>()) {
-            pipeline.clone()
-        } else {
-            // If not, create the pipeline and insert it into the cache.
-            let pipeline = T::create_pipeline(device, config);
-            let pipeline = Arc::new(pipeline);
-            self.pipelines.insert(TypeId::of::<T>(), pipeline.clone());
-            pipeline
-        }
+        let type_id = TypeId::of::<T>();
+        self.pipelines.entry(type_id).or_insert_with(||{
+            println!("Creating pipeline");
+            let pipeline = T::create_pipeline(render_context);
+            Arc::new(pipeline)
+        }).clone()
     }
 }
 
@@ -43,28 +38,8 @@ lazy_static! {
 
 pub struct DefaultPipeline;
 
-
 impl DefaultPipeline{
-    pub fn create_bind_group(device: &wgpu::Device, texture: Texture)->wgpu::BindGroup{
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &Self::get_bind_group_layout(device),
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                },
-            ],
-            label: Some("diffuse_bind_group"),
-        })
-    }
-}
-
-impl ToPipeline for DefaultPipeline{
-    fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    fn create_texture_bind_group_layout(device: &wgpu::Device)-> wgpu::BindGroupLayout{
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -89,14 +64,76 @@ impl ToPipeline for DefaultPipeline{
             label: Some("texture_bind_group_layout"),
         })
     }
-    fn create_pipeline(device: &Device, config: &SurfaceConfiguration) -> RenderPipeline {
-        let texture_bind_group_layout = Self::get_bind_group_layout(device);
+    fn create_camera_bind_group_layout(device: &wgpu::Device)-> wgpu::BindGroupLayout{
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+            label: Some("camera_bind_group_layout"),
+        })
+    }
+    fn create_bind_group_layouts(device: &wgpu::Device) -> Vec<wgpu::BindGroupLayout> {
+        let texture_bind_group_layout = Self::create_texture_bind_group_layout(device);
+        let camera_bind_group_layout = Self::create_camera_bind_group_layout(device);
+        vec![texture_bind_group_layout, camera_bind_group_layout]
+    }
+
+    pub fn create_texture_bind_group(device: &wgpu::Device, texture: Texture)->wgpu::BindGroup{
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &Self::create_texture_bind_group_layout(device),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                },
+            ],
+            label: Some("diffuse_bind_group"),
+        })
+    }
+    pub fn create_camera_bind_group(device: &wgpu::Device, camera_buffer: &wgpu::Buffer)->wgpu::BindGroup{
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &Self::create_camera_bind_group_layout(device),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                }
+            ],
+            label: Some("camera_bind_group"),
+        })
+    }
+    pub fn create_bind_groups(device: &wgpu::Device, texture: Texture, camera_buffer: &wgpu::Buffer)->Vec<wgpu::BindGroup>{
+        let texture_bind_group = Self::create_texture_bind_group(device, texture);
+        let camera_bind_group = Self::create_camera_bind_group(device, camera_buffer);
+        vec![texture_bind_group, camera_bind_group]
+    }
+}
+
+impl ToPipeline for DefaultPipeline{
+    
+    fn create_pipeline(render_context: &RenderContext) -> RenderPipeline {
+        let device = &render_context.device;
+        let config = &render_context.config;
+        let bind_group_layouts = Self::create_bind_group_layouts(device);
             
       
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&texture_bind_group_layout],
+                bind_group_layouts: &bind_group_layouts.iter().map(|x| x).collect::<Vec<_>>(),
                 push_constant_ranges: &[],
             });
 

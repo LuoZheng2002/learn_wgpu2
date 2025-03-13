@@ -1,20 +1,21 @@
 use std::sync::Arc;
 
 use tokio::runtime::Runtime;
-use wgpu::Surface;
+use wgpu::{util::DeviceExt, Surface};
 use winit::window::Window;
 
-use crate::renderable::RENDERABLES;
+use crate::{camera::Camera, camera_uniform::CameraUniform, renderable::RENDERABLES};
 
 
 
 pub struct RenderContext{
     pub window: Arc<Window>,
     surface: wgpu::Surface<'static>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub config: wgpu::SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
+    pub camera_buffer: wgpu::Buffer,
 }
 
 impl RenderContext{
@@ -76,8 +77,33 @@ impl RenderContext{
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
+
+        // camera stuff 
+        let camera = Camera {
+            // position the camera 1 unit up and 2 units back
+            // +z is out of the screen
+            eye: (0.0, 1.0, 2.0).into(),
+            // have it look at the origin
+            target: (0.0, 0.0, 0.0).into(),
+            // which way is "up"
+            up: cgmath::Vector3::unit_y(),
+            aspect: config.width as f32 / config.height as f32,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0,
+        };
         
-        Self { window, surface, device, queue, config, size}
+        let mut camera_uniform = CameraUniform::new();
+        camera_uniform.update_view_proj(&camera);
+
+        let camera_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Buffer"),
+                contents: bytemuck::cast_slice(&[camera_uniform]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+        Self { window, surface, device, queue, config, size, camera_buffer}
     }
 
 
@@ -117,8 +143,8 @@ impl RenderContext{
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            for renderable in RENDERABLES.lock().unwrap().renderables.iter(){
-                renderable.render(&mut render_pass, &self.device, &self.queue, &self.config);
+            for renderable in RENDERABLES.lock().unwrap().iter(){
+                renderable.clone().render(&mut render_pass, &self);
             }
         }
 
