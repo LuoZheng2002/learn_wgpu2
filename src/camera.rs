@@ -24,7 +24,7 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn build_view_projection_matrix(&self, aspect: f32) -> cgmath::Matrix4<f32> {
+    pub fn build_view_matrix(&self) -> cgmath::Matrix4<f32> {
         let forward = cgmath::Vector3::new(
             self.yaw.to_radians().cos() * self.pitch.to_radians().cos(),
             self.pitch.to_radians().sin(),
@@ -40,16 +40,12 @@ impl Camera {
 
         // Calculate the actual up vector (perpendicular to forward and right)
         let up = right.cross(forward).normalize();
-
-        // 1.
         let target = self.pos + forward;
-
         let view = cgmath::Matrix4::look_at_rh(self.pos, target, up);
-        // 2.
-        let proj = cgmath::perspective(cgmath::Deg(self.fovy), aspect, self.znear, self.zfar);
-
-        // 3.
-        return OPENGL_TO_WGPU_MATRIX * proj * view;
+        view
+    }
+    pub fn build_projection_matrix(&self, aspect: f32) -> cgmath::Matrix4<f32> {
+        cgmath::perspective(cgmath::Deg(self.fovy), aspect, self.znear, self.zfar)
     }
 }
 

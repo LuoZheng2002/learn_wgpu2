@@ -13,9 +13,23 @@ pub struct State {
     pub prev_time: Option<f32>,
     pub focus: bool,
     pub prev_device_mouse_delta: Option<(f64, f64)>,
+    pub fps_timer: Instant,
+    pub accumulated_frame_num: u32,
 }
 impl State {
     pub fn update(&mut self, input_context: &mut InputContext, window: Arc<Window>) {
+        // calculate fps every 1 second
+        let current_time = self.fps_timer.elapsed().as_secs_f32();
+        if current_time >= 1.0 {
+            println!("FPS: {}", self.accumulated_frame_num);
+            self.accumulated_frame_num = 0;
+            self.fps_timer = Instant::now();
+        } else {
+            self.accumulated_frame_num += 1;
+        }
+
+
+
         let current_time = self.timer.elapsed().as_secs_f32();
         let delta_time = current_time - self.prev_time.unwrap_or(current_time);
         assert!(delta_time >= 0.0);
@@ -153,7 +167,6 @@ impl State {
 
         let global_speed = local_to_global(self.camera.curr_local_speed, self.camera.yaw);
         self.camera.pos += global_speed * delta_time;
-        println!("Camera pos: {:?}", self.camera.pos);
 
         if input_context.mouse_left_down() {
             println!("Mouse left down");
@@ -203,6 +216,8 @@ impl Default for State {
             prev_time: None,
             focus: false,
             prev_device_mouse_delta: None,
+            fps_timer: Instant::now(),
+            accumulated_frame_num: 0,
         }
     }
 }

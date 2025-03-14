@@ -1,6 +1,6 @@
 use wgpu::RenderPipeline;
 
-use crate::{render_context::RenderContext, render_pipeline::ToPipeline, texture::Texture, vertex::Vertex};
+use crate::{cube_texture::CubeTexture, render_context::RenderContext, render_pipeline::ToPipeline, texture::Texture, vertex::Vertex};
 
 
 pub struct SkyboxPipeline;
@@ -31,7 +31,7 @@ impl SkyboxPipeline {
             label: Some("texture_bind_group_layout"),
         })
     }
-    fn create_view_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    fn create_camera_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
@@ -48,32 +48,32 @@ impl SkyboxPipeline {
     }
     fn create_bind_group_layouts(device: &wgpu::Device) -> Vec<wgpu::BindGroupLayout> {
         let texture_bind_group_layout = Self::create_texture_bind_group_layout(device);
-        let camera_bind_group_layout = Self::create_view_bind_group_layout(device);
+        let camera_bind_group_layout = Self::create_camera_bind_group_layout(device);
         vec![texture_bind_group_layout, camera_bind_group_layout]
     }
 
-    pub fn create_texture_bind_group(device: &wgpu::Device, texture: Texture) -> wgpu::BindGroup {
+    pub fn create_texture_bind_group(device: &wgpu::Device, cube_texture: CubeTexture) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &Self::create_texture_bind_group_layout(device),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
+                    resource: wgpu::BindingResource::TextureView(&cube_texture.view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                    resource: wgpu::BindingResource::Sampler(&cube_texture.sampler),
                 },
             ],
             label: Some("diffuse_bind_group"),
         })
     }
-    pub fn create_view_bind_group(
+    pub fn create_camera_bind_group(
         device: &wgpu::Device,
         camera_buffer: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &Self::create_view_bind_group_layout(device),
+            layout: &Self::create_camera_bind_group_layout(device),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: camera_buffer.as_entire_binding(),
@@ -83,11 +83,11 @@ impl SkyboxPipeline {
     }
     pub fn create_bind_groups(
         device: &wgpu::Device,
-        texture: Texture,
+        cube_texture: CubeTexture,
         camera_buffer: &wgpu::Buffer,
     ) -> Vec<wgpu::BindGroup> {
-        let texture_bind_group = Self::create_texture_bind_group(device, texture);
-        let camera_bind_group = Self::create_view_bind_group(device, camera_buffer);
+        let texture_bind_group = Self::create_texture_bind_group(device, cube_texture);
+        let camera_bind_group = Self::create_camera_bind_group(device, camera_buffer);
         vec![texture_bind_group, camera_bind_group]
     }
 }
@@ -143,7 +143,13 @@ impl ToPipeline for SkyboxPipeline {
                 // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },
-            depth_stencil: None, // 1.
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: Texture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual, // 1.
+                stencil: wgpu::StencilState::default(), // 2.
+                bias: wgpu::DepthBiasState::default(),
+            }), // 1.
             multisample: wgpu::MultisampleState {
                 count: 1,                         // 2.
                 mask: !0,                         // 3.

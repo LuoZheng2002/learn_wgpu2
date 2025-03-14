@@ -13,7 +13,7 @@ use wgpu::{RenderPipeline, util::DeviceExt};
 use crate::{
     render_context::RenderContext,
     render_data::{RENDER_DATA_CACHE, RenderData},
-    render_pipeline::{DefaultPipeline, PIPELINE_CACHE},
+    render_pipeline::PIPELINE_CACHE,
     texture::Texture,
     vertex::Vertex,
 };

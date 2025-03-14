@@ -11,6 +11,7 @@ use crate::render_context::RenderContext;
 use crate::renderable::RENDERABLES;
 use crate::renderables::cube::Cube;
 use crate::renderables::polygon::Polygon;
+use crate::renderables::skybox::Skybox;
 use crate::state::State;
 
 #[derive(Default)]
@@ -37,6 +38,7 @@ impl<'a> ApplicationHandler for App {
         self.render_context = Some(RenderContext::new(window));
         // RENDERABLES.lock().unwrap().push(Box::new(Polygon));
         RENDERABLES.lock().unwrap().push(Box::new(Cube));
+        RENDERABLES.lock().unwrap().push(Box::new(Skybox));
     }
     fn device_event(
         &mut self,
@@ -54,8 +56,8 @@ impl<'a> ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::Resized(physical_size) => {
-                let state = self.get_context_mut();
-                state.resize(physical_size);
+                let context = self.get_context_mut();
+                context.resize(physical_size);
             }
             WindowEvent::RedrawRequested => {
                 // Redraw the application.
