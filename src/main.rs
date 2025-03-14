@@ -1,9 +1,6 @@
 use learn_wgpu2::app::App;
 use winit::event_loop::{ControlFlow, EventLoop};
 
-
-
-
 fn main() {
     env_logger::init();
     let event_loop = EventLoop::new().unwrap();

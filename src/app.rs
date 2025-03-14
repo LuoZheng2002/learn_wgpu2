@@ -1,6 +1,6 @@
 use wgpu::util::DeviceExt;
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{DeviceEvent, DeviceId, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
@@ -8,7 +8,9 @@ use crate::camera::Camera;
 use crate::camera_uniform::CameraUniform;
 use crate::input_context::InputContext;
 use crate::render_context::RenderContext;
-use crate::renderable::{Polygon, RENDERABLES};
+use crate::renderable::RENDERABLES;
+use crate::renderables::cube::Cube;
+use crate::renderables::polygon::Polygon;
 use crate::state::State;
 
 #[derive(Default)]
@@ -33,9 +35,19 @@ impl<'a> ApplicationHandler for App {
             .create_window(Window::default_attributes())
             .unwrap();
         self.render_context = Some(RenderContext::new(window));
-        RENDERABLES.lock().unwrap().push(Box::new(Polygon));
+        // RENDERABLES.lock().unwrap().push(Box::new(Polygon));
+        RENDERABLES.lock().unwrap().push(Box::new(Cube));
+    }
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: DeviceId,
+        event: DeviceEvent,
+    ) {
+        self.input_context.handle_device_event(&event);
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        self.input_context.handle_window_event(&event);
         match event {
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");
@@ -64,7 +76,13 @@ impl<'a> ApplicationHandler for App {
                 // if !surface_configured {
                 //     return;
                 // }
-                match self.get_context_mut().render() {
+
+                let window = self.get_context().window.clone();
+                self.state.update(&mut self.input_context, window);
+                // take out the render context from self
+                let render_context = self.render_context.take().unwrap();
+
+                match render_context.render(&self.state) {
                     Ok(_) => {}
                     // Reconfigure the surface if it's lost or outdated
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -81,9 +99,9 @@ impl<'a> ApplicationHandler for App {
                         log::warn!("Surface timeout")
                     }
                 }
+                self.render_context = Some(render_context);
             }
             _ => (),
         }
     }
 }
-

@@ -1,5 +1,8 @@
 use std::collections::HashMap;
-use winit::{event::{ElementState, MouseButton, WindowEvent}, keyboard::{Key, KeyCode, NamedKey, PhysicalKey}};
+use winit::{
+    event::{DeviceEvent, ElementState, MouseButton, WindowEvent},
+    keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
+};
 #[derive(Default)]
 pub struct InputContext {
     key_states: HashMap<KeyCode, bool>,
@@ -12,16 +15,20 @@ pub struct InputContext {
     mouse_right_pressed_flag: bool,
     mouse_right_released_flag: bool,
     cursor_position: Option<(f64, f64)>,
+    device_mouse_delta_accumulated: (f64, f64),
 }
 
 impl InputContext {
-    pub fn handle_event(&mut self, event: &WindowEvent) {
+    pub fn handle_window_event(&mut self, event: &WindowEvent) {
         match event {
-            WindowEvent::KeyboardInput { device_id: _, event, is_synthetic: _ } => {
+            WindowEvent::KeyboardInput {
+                device_id: _,
+                event,
+                is_synthetic: _,
+            } => {
                 let physical_key = event.physical_key;
-                if let PhysicalKey::Code(key_code) = physical_key
-                {
-                    match event.state{
+                if let PhysicalKey::Code(key_code) = physical_key {
+                    match event.state {
                         ElementState::Pressed => {
                             let prev_state = self.key_states.insert(key_code, true);
                             let prev_pressed = prev_state.unwrap_or(false);
@@ -42,14 +49,22 @@ impl InputContext {
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
-                fn handle_mouse_pressed(mouse: &mut bool, mouse_pressed_flag: &mut bool, mouse_released_flag: &mut bool) {
+                fn handle_mouse_pressed(
+                    mouse: &mut bool,
+                    mouse_pressed_flag: &mut bool,
+                    mouse_released_flag: &mut bool,
+                ) {
                     if !*mouse {
                         *mouse_pressed_flag = true;
                     }
                     *mouse = true;
                     *mouse_released_flag = false;
                 }
-                fn handle_mouse_released(mouse: &mut bool, mouse_pressed_flag: &mut bool, mouse_released_flag: &mut bool) {
+                fn handle_mouse_released(
+                    mouse: &mut bool,
+                    mouse_pressed_flag: &mut bool,
+                    mouse_released_flag: &mut bool,
+                ) {
                     if *mouse {
                         *mouse_released_flag = true;
                     }
@@ -57,31 +72,59 @@ impl InputContext {
                     *mouse_pressed_flag = false;
                 }
                 match button {
-                    MouseButton::Left => {
-                        match state {
-                            ElementState::Pressed => {
-                                handle_mouse_pressed(&mut self.mouse_left, &mut self.mouse_left_pressed_flag, &mut self.mouse_left_released_flag);
-                            }
-                            ElementState::Released => {
-                                handle_mouse_released(&mut self.mouse_left, &mut self.mouse_left_pressed_flag, &mut self.mouse_left_released_flag);
-                            }
+                    MouseButton::Left => match state {
+                        ElementState::Pressed => {
+                            handle_mouse_pressed(
+                                &mut self.mouse_left,
+                                &mut self.mouse_left_pressed_flag,
+                                &mut self.mouse_left_released_flag,
+                            );
                         }
-                    }
-                    MouseButton::Right => {
-                        match state {
-                            ElementState::Pressed => {
-                                handle_mouse_pressed(&mut self.mouse_right, &mut self.mouse_right_pressed_flag, &mut self.mouse_right_released_flag);
-                            }
-                            ElementState::Released => {
-                                handle_mouse_released(&mut self.mouse_right, &mut self.mouse_right_pressed_flag, &mut self.mouse_right_released_flag);
-                            }
+                        ElementState::Released => {
+                            handle_mouse_released(
+                                &mut self.mouse_left,
+                                &mut self.mouse_left_pressed_flag,
+                                &mut self.mouse_left_released_flag,
+                            );
                         }
-                    }
+                    },
+                    MouseButton::Right => match state {
+                        ElementState::Pressed => {
+                            handle_mouse_pressed(
+                                &mut self.mouse_right,
+                                &mut self.mouse_right_pressed_flag,
+                                &mut self.mouse_right_released_flag,
+                            );
+                        }
+                        ElementState::Released => {
+                            handle_mouse_released(
+                                &mut self.mouse_right,
+                                &mut self.mouse_right_pressed_flag,
+                                &mut self.mouse_right_released_flag,
+                            );
+                        }
+                    },
                     _ => {}
                 }
             }
-            WindowEvent::CursorMoved { device_id: _, position }=> {
-                self.cursor_position = Some((position.x, position.y));
+            // WindowEvent::CursorMoved { device_id: _, position }=> {
+            //     self.mouse_delta = match self.cursor_position {
+            //         Some((x, y)) => (position.x - x, position.y - y),
+            //         None => (0., 0.),
+            //     };
+            //     self.cursor_position = Some((position.x, position.y));
+            // }
+            _ => {}
+        }
+    }
+
+    pub fn handle_device_event(&mut self, event: &DeviceEvent) {
+        // handle device events here
+        match event {
+            DeviceEvent::MouseMotion { delta } => {
+                // println!("Received mouse motion: {:?}", delta);
+                let old = self.device_mouse_delta_accumulated;
+                self.device_mouse_delta_accumulated = (delta.0 + old.0, delta.1 + old.1);
             }
             _ => {}
         }
@@ -133,5 +176,8 @@ impl InputContext {
 
     pub fn mouse_position(&self) -> Option<(f64, f64)> {
         self.cursor_position
+    }
+    pub fn device_mouse_delta_accumulated(&mut self) -> (f64, f64) {
+        self.device_mouse_delta_accumulated
     }
 }

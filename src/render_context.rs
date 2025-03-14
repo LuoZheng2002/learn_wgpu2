@@ -1,14 +1,17 @@
 use std::sync::Arc;
 
 use tokio::runtime::Runtime;
-use wgpu::{util::DeviceExt, Surface};
+use wgpu::{Surface, util::DeviceExt};
 use winit::window::Window;
 
-use crate::{camera::Camera, camera_uniform::CameraUniform, renderable::RENDERABLES};
+use crate::{
+    camera::{self, Camera},
+    camera_uniform::{self, CameraUniform},
+    renderable::RENDERABLES,
+    state::State,
+};
 
-
-
-pub struct RenderContext{
+pub struct RenderContext {
     pub window: Arc<Window>,
     surface: wgpu::Surface<'static>,
     pub device: wgpu::Device,
@@ -18,8 +21,8 @@ pub struct RenderContext{
     pub camera_buffer: wgpu::Buffer,
 }
 
-impl RenderContext{
-    pub fn new(window: Window)->Self{
+impl RenderContext {
+    pub fn new(window: Window) -> Self {
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -78,42 +81,48 @@ impl RenderContext{
             desired_maximum_frame_latency: 2,
         };
 
-        // camera stuff 
-        let camera = Camera {
-            // position the camera 1 unit up and 2 units back
-            // +z is out of the screen
-            eye: (0.0, 1.0, 2.0).into(),
-            // have it look at the origin
-            target: (0.0, 0.0, 0.0).into(),
-            // which way is "up"
-            up: cgmath::Vector3::unit_y(),
-            aspect: config.width as f32 / config.height as f32,
-            fovy: 45.0,
-            znear: 0.1,
-            zfar: 100.0,
-        };
-        
-        let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
+        // camera stuff
+        // let camera = Camera {
+        //     // position the camera 1 unit up and 2 units back
+        //     // +z is out of the screen
+        //     eye: (0.0, 1.0, 2.0).into(),
+        //     // have it look at the origin
+        //     target: (0.0, 0.0, 0.0).into(),
+        //     // which way is "up"
+        //     up: cgmath::Vector3::unit_y(),
+        //     aspect: config.width as f32 / config.height as f32,
+        //     fovy: 45.0,
+        //     znear: 0.1,
+        //     zfar: 100.0,
+        // };
 
-        let camera_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
-        Self { window, surface, device, queue, config, size, camera_buffer}
+        // let mut camera_uniform = CameraUniform::new();
+        // camera_uniform.update_view_proj(&camera);
+        let camera_uniform = CameraUniform::new();
+
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        Self {
+            window,
+            surface,
+            device,
+            queue,
+            config,
+            size,
+            camera_buffer,
+        }
     }
 
-
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>){
+    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         self.size = new_size;
         self.config.width = new_size.width;
         self.config.height = new_size.height;
         self.surface.configure(&self.device, &self.config);
     }
-    pub fn render(&self, )->Result<(), wgpu::SurfaceError>{
+    pub fn render(&self, state: &State) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -143,7 +152,17 @@ impl RenderContext{
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            for renderable in RENDERABLES.lock().unwrap().iter(){
+
+            let mut camera_uniform = CameraUniform::new();
+            let aspect = self.config.width as f32 / self.config.height as f32;
+            camera_uniform.update_view_proj(&state.camera, aspect);
+            self.queue.write_buffer(
+                &self.camera_buffer,
+                0,
+                bytemuck::cast_slice(&[camera_uniform]),
+            );
+
+            for renderable in RENDERABLES.lock().unwrap().iter() {
                 renderable.clone().render(&mut render_pass, &self);
             }
         }

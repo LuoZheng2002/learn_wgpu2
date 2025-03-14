@@ -1,3 +1,5 @@
+use cgmath::{InnerSpace, Zero};
+
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
     1.0, 0.0, 0.0, 0.0,
@@ -6,25 +8,65 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
     0.0, 0.0, 0.0, 1.0,
 );
 
-
 pub struct Camera {
-    pub eye: cgmath::Point3<f32>,
-    pub target: cgmath::Point3<f32>,
-    pub up: cgmath::Vector3<f32>,
-    pub aspect: f32,
+    pub pos: cgmath::Point3<f32>,
+    pub yaw: f32,
+    pub pitch: f32,
     pub fovy: f32,
     pub znear: f32,
     pub zfar: f32,
+    // speed
+    pub max_speed: f32,
+    pub acceleration: f32,
+    pub damp_factor: f32,
+    pub curr_local_speed: cgmath::Vector3<f32>,
+    pub sensitivity: f32,
 }
 
 impl Camera {
-    pub fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
+    pub fn build_view_projection_matrix(&self, aspect: f32) -> cgmath::Matrix4<f32> {
+        let forward = cgmath::Vector3::new(
+            self.yaw.to_radians().cos() * self.pitch.to_radians().cos(),
+            self.pitch.to_radians().sin(),
+            self.yaw.to_radians().sin() * self.pitch.to_radians().cos(),
+        )
+        .normalize();
+
+        // World up vector
+        let world_up = cgmath::Vector3::unit_y();
+
+        // Calculate the right vector (perpendicular to forward and world up)
+        let right = forward.cross(world_up).normalize();
+
+        // Calculate the actual up vector (perpendicular to forward and right)
+        let up = right.cross(forward).normalize();
+
         // 1.
-        let view = cgmath::Matrix4::look_at_rh(self.eye, self.target, self.up);
+        let target = self.pos + forward;
+
+        let view = cgmath::Matrix4::look_at_rh(self.pos, target, up);
         // 2.
-        let proj = cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
+        let proj = cgmath::perspective(cgmath::Deg(self.fovy), aspect, self.znear, self.zfar);
 
         // 3.
         return OPENGL_TO_WGPU_MATRIX * proj * view;
+    }
+}
+
+impl Default for Camera {
+    fn default() -> Self {
+        Camera {
+            pos: cgmath::Point3::new(0.0, 0.0, 2.0),
+            yaw: -90.0,
+            pitch: 0.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0,
+            max_speed: 2.5,
+            acceleration: 10.0,
+            damp_factor: 5.0,
+            curr_local_speed: cgmath::Vector3::zero(),
+            sensitivity: 0.25,
+        }
     }
 }
