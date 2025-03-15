@@ -2,7 +2,6 @@ use wgpu::RenderPipeline;
 
 use crate::{render_context::RenderContext, render_pipeline::ToPipeline, texture::Texture, vertex::Vertex};
 
-
 pub struct DefaultPipeline;
 
 impl DefaultPipeline {

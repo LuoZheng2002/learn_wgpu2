@@ -26,6 +26,8 @@ pub trait Renderable: GetType {
     fn render(&self, render_pass: &mut wgpu::RenderPass, render_context: &RenderContext)
     // where Self: Sized + 'static
     {
+        // 
+
         let pipeline = self.choose_pipeline(render_context);
         let mut render_data_cache = RENDER_DATA_CACHE.lock().unwrap();
         let data = render_data_cache.get_data(self, render_context);

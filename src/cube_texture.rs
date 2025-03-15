@@ -13,7 +13,10 @@ impl CubeTexture {
     pub fn from_bytes(device: &wgpu::Device, queue: &wgpu::Queue,
         bytes: &Vec<&[u8]>, label: &str) -> Result<Self, image::ImageError> {
         let img = bytes.iter()
-            .map(|b| image::load_from_memory(b))
+            .map(|b| {
+                println!("Loading image from bytes");
+                image::load_from_memory(b)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         Self::from_image(device, queue, &img, Some(label))
     }
@@ -39,6 +42,7 @@ impl CubeTexture {
 
         for (i, img) in img.iter().enumerate() {
             let rgba = img.to_rgba8();
+            println!("Writing texture data for face {}", i);
             queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
                     aspect: wgpu::TextureAspect::All,
