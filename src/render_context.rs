@@ -5,7 +5,7 @@ use wgpu::{Surface, util::DeviceExt};
 use winit::window::Window;
 
 use crate::{
-    camera_uniform::CameraUniform, render_passes::RenderPassType, render_pipeline::{PipelineCache, ToPipeline}, renderable::Renderable, state::State, texture::Texture
+    camera_uniform::CameraUniform, render_passes::{RenderPassType, RenderPasses}, render_pipeline::{PipelineCache, ToPipeline}, renderable::Renderable, state::State, texture::Texture
 };
 
 pub struct RenderContext {
@@ -182,68 +182,11 @@ impl RenderContext {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-        {
-            let mut object_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-            
-            for renderable in state.renderables.iter_mut() {
-                renderable.render(&mut object_render_pass,  self);
-            }            
-        }
-        // {
-        //     let mut ui_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        //         label: Some("Render Pass"),
-        //         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-        //             view: &view,
-        //             resolve_target: None,
-        //             ops: wgpu::Operations {
-        //                 load: wgpu::LoadOp::Clear(wgpu::Color {
-        //                     r: 0.1,
-        //                     g: 0.2,
-        //                     b: 0.3,
-        //                     a: 1.0,
-        //                 }),
-        //                 store: wgpu::StoreOp::Store,
-        //             },
-        //         })],
-        //         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-        //             view: &self.depth_texture.view,
-        //             depth_ops: Some(wgpu::Operations {
-        //                 load: wgpu::LoadOp::Clear(1.0),
-        //                 store: wgpu::StoreOp::Store,
-        //             }),
-        //             stencil_ops: None,
-        //         }),
-        //         occlusion_query_set: None,
-        //         timestamp_writes: None,
-        //     });
-        // }
-
-        // submit will accept anything that implements IntoIter
+        let mut pipeline_cache = self.pipeline_cache.take().unwrap();
+        let mut render_passes = RenderPasses::new(&mut state.renderables, self, &mut pipeline_cache, Some(&view));
+        render_passes.render(&mut encoder);
+        self.pipeline_cache = Some(pipeline_cache);
+        
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
         Ok(())

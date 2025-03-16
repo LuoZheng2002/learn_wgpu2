@@ -1,4 +1,8 @@
-use image::GenericImageView;
+use std::{collections::HashMap, sync::Mutex};
+
+use image::{GenericImageView, Rgba};
+use lazy_static::lazy_static;
+use rusttype::{point, Font};
 
 use crate::render_context;
 
@@ -8,17 +12,46 @@ pub struct Texture {
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
 }
+#[derive(Hash, PartialEq, PartialOrd, Ord, Eq, Debug, Clone)]
+pub enum TextureSource{
+    FilePath(String),
+    TextCharacter{character: char, font_file_path: String},
+}
 
 impl Texture {
-    pub fn from_file(
-        file_path: &str,
+    fn load_image_from_file_path(file_path: &str) -> Result<image::ImageBuffer<Rgba<u8>, Vec<u8>>, image::ImageError> {
+        let img = image::open(file_path)?;
+        Ok(img.to_rgba8())
+    }
+    fn load_image_from_text_character(character: char, font_file_path: String) -> image::ImageBuffer<Rgba<u8>, Vec<u8>> {
+        let mut fonts = FONTS.lock().unwrap();
+        let font = fonts.entry(font_file_path.clone()).or_insert_with(|| {
+            let font_data = std::fs::read(font_file_path).unwrap();
+            Font::try_from_vec(font_data).unwrap()
+        });
+        let scale = rusttype::Scale::uniform(1024.0);
+        let glyph = font.glyph(character).scaled(scale).positioned(point(0.0, 0.0));
+        let bounding_box = glyph.pixel_bounding_box().unwrap();
+        let width = bounding_box.width() as u32;
+        let height = bounding_box.height() as u32;
+        let mut image = image::ImageBuffer::new(width, height);
+        glyph.draw(|x, y, v| {
+            let intensity = (v * 128.0) as u8;
+            image.put_pixel(x, y, Rgba([255, 255, 255, intensity]));
+        });
+        image::imageops::flip_vertical(&image)
+    }
+    pub fn load(
+        texture_source: TextureSource,
         render_context: &render_context::RenderContext,
         label: Option<&str>,
     ) -> Result<Self, image::ImageError> {
         let device = &render_context.device;
         let queue = &render_context.queue;
-        let img = image::open(file_path)?;
-        let rgba = img.to_rgba8();
+        let img = match texture_source {
+            TextureSource::FilePath(ref file_path) => Self::load_image_from_file_path(file_path)?,
+            TextureSource::TextCharacter { character, font_file_path } => Self::load_image_from_text_character(character, font_file_path),
+        };
         let dimensions = img.dimensions();
         let size = wgpu::Extent3d {
             width: dimensions.0,
@@ -43,7 +76,7 @@ impl Texture {
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
-            &rgba,
+            &img,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * dimensions.0),
@@ -106,7 +139,11 @@ impl Texture {
                 ..Default::default()
             }
         );
-
         Self { texture, view, sampler }
     }
+}
+
+
+lazy_static!{
+    static ref FONTS: Mutex<HashMap<String, Font<'static>>> = Mutex::new(HashMap::new());
 }

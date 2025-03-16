@@ -4,25 +4,27 @@ use lazy_static::lazy_static;
 use wgpu::{RenderPipeline, util::DeviceExt};
 
 use crate::{
-    pipelines::{default_pipeline::DefaultPipeline, ui_pipeline::UIPipeline}, render_context::RenderContext, render_passes::RenderPassType, renderable::Renderable, texture::Texture, vertex::Vertex
+    pipelines::{default_pipeline::DefaultPipeline, ui_pipeline::UIPipeline}, render_context::RenderContext, render_passes::RenderPassType, render_pipeline::PipelineCache, renderable::Renderable, texture::{Texture, TextureSource}, vertex::Vertex
 };
 
+
+
 pub struct UI{
-    texture_file_path: String,
+    texture_source: TextureSource,
     texture_bind_group: Option<wgpu::BindGroup>,
 }
 impl UI{
-    pub fn new(texture_file_path: String) -> Self {
+    pub fn new(ui_source: TextureSource) -> Self {
         Self {
-            texture_file_path,
+            texture_source: ui_source,
             texture_bind_group: None,
         }
     }
 }
 
 impl Renderable for UI {
-    fn choose_pipeline(&self, render_context: &mut RenderContext) -> Arc<(RenderPipeline, RenderPassType)> {
-        render_context.get_pipeline::<UIPipeline>() // 2.
+    fn choose_pipeline(&self, render_context: &RenderContext, pipeline_cache: &mut PipelineCache) -> Arc<(RenderPipeline, RenderPassType)> {
+        pipeline_cache.get_pipeline::<UIPipeline>(render_context) // 2.
         // render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]); // NEW!
         // render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // 3.
         // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
@@ -49,8 +51,8 @@ impl Renderable for UI {
         }).clone()
     }
     fn get_bind_groups<'a>(&'a mut self, render_context: &'a RenderContext) -> Vec<&'a wgpu::BindGroup> {
-        let texture = TEXTURES.lock().unwrap().entry(self.texture_file_path.clone()).or_insert_with(|| {
-            let texture = Texture::from_file("assets/textures/ui.png", render_context, Some("ui texture")).unwrap();
+        let texture = TEXTURES.lock().unwrap().entry(self.texture_source.clone()).or_insert_with(|| {
+            let texture = Texture::load(self.texture_source.clone(), render_context, Some("ui texture")).unwrap();
             Arc::new(texture)
         }).clone();
         let bind_groups: Vec<&'a wgpu::BindGroup> = DefaultPipeline::create_bind_groups(render_context, &texture, &mut self.texture_bind_group);
@@ -76,5 +78,5 @@ lazy_static!{
     ];
     static ref VERTEX_BUFFER: Mutex<Option<Arc<wgpu::Buffer>>> = Mutex::new(None);
     static ref INDEX_BUFFER: Mutex<Option<Arc<wgpu::Buffer>>> = Mutex::new(None);
-    static ref TEXTURES: Mutex<HashMap<String, Arc<Texture>>> = Mutex::new(HashMap::new());
+    static ref TEXTURES: Mutex<HashMap<TextureSource, Arc<Texture>>> = Mutex::new(HashMap::new());
 }

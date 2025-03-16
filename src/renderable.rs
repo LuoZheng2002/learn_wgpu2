@@ -9,17 +9,19 @@ use crate::render_context::RenderContext;
 
 use crate::get_type::GetType;
 use crate::render_passes::RenderPassType;
+use crate::render_pipeline::PipelineCache;
 
 pub trait Renderable: GetType {
-    fn choose_pipeline(&self, render_context: &mut RenderContext) -> Arc<(RenderPipeline, RenderPassType)>;
+    fn choose_pipeline(&self, render_context: &RenderContext, pipeline_cache: &mut PipelineCache) -> Arc<(RenderPipeline, RenderPassType)>;
     fn get_vertex_buffer(&self, render_context: &RenderContext) -> Arc<wgpu::Buffer>;
     fn get_index_buffer(&self, render_context: &RenderContext) -> Arc<wgpu::Buffer>;
     fn get_bind_groups<'a>(&'a mut self, render_context: &'a RenderContext) -> Vec<&'a wgpu::BindGroup>;
     fn get_num_indices(&self) -> u32;
-    fn render(&mut self, render_pass: &mut wgpu::RenderPass, render_context: &mut RenderContext)
-    // where Self: Sized + 'static
-    {
-        let pipeline = &self.choose_pipeline(render_context).0;
+    fn render(&mut self, render_pass: &mut wgpu::RenderPass,
+         render_context: &RenderContext,
+         pipeline_cache: &mut PipelineCache
+    ){
+        let pipeline = &self.choose_pipeline(render_context, pipeline_cache).0;
         render_pass.set_pipeline(pipeline);
         let vertex_buffer = self.get_vertex_buffer(render_context);
         let index_buffer = self.get_index_buffer(render_context);
@@ -32,8 +34,8 @@ pub trait Renderable: GetType {
         render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         render_pass.draw_indexed(0..num_indices, 0, 0..1);
     }
-    fn get_render_pass_type(&self, render_context: &mut RenderContext) -> RenderPassType {
-        self.choose_pipeline(render_context).1.clone()
+    fn get_render_pass_type(&self, render_context: &mut RenderContext, pipeline_cache: &mut PipelineCache) -> RenderPassType {
+        self.choose_pipeline(render_context, pipeline_cache).1.clone()
     }
 }
 

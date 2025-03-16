@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use wgpu::{RenderPipeline, util::DeviceExt};
 
 use crate::{
-    pipelines::default_pipeline::DefaultPipeline, render_context::RenderContext, render_passes::RenderPassType, renderable::Renderable, texture::Texture, vertex::Vertex
+    pipelines::default_pipeline::DefaultPipeline, render_context::RenderContext, render_passes::RenderPassType, render_pipeline::PipelineCache, renderable::Renderable, texture::{Texture, TextureSource}, vertex::Vertex
 };
 
 pub struct Cube{
@@ -22,8 +22,8 @@ impl Cube{
 
 
 impl Renderable for Cube {
-    fn choose_pipeline(&self, render_context: &mut RenderContext) -> Arc<(RenderPipeline, RenderPassType)> {
-        render_context.get_pipeline::<DefaultPipeline>() // 2.
+    fn choose_pipeline(&self, render_context: &RenderContext, pipeline_cache: &mut PipelineCache) -> Arc<(RenderPipeline, RenderPassType)> {
+        pipeline_cache.get_pipeline::<DefaultPipeline>(render_context) // 2.
         // render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]); // NEW!
         // render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // 3.
         // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
@@ -51,7 +51,7 @@ impl Renderable for Cube {
     }
     fn get_bind_groups<'a>(&'a mut self, render_context: &'a RenderContext) -> Vec<&'a wgpu::BindGroup> {
         let texture = TEXTURES.lock().unwrap().entry(self.texture_file_path.clone()).or_insert_with(|| {
-            let texture = Texture::from_file(&self.texture_file_path, render_context, Some("cube texture")).unwrap();
+            let texture = Texture::load(TextureSource::FilePath(self.texture_file_path.clone()), render_context, Some("cube texture")).unwrap();
             Arc::new(texture)
         }).clone();
         let bind_groups: Vec<&'a wgpu::BindGroup> = DefaultPipeline::create_bind_groups(render_context, &texture, &mut self.texture_bind_group);

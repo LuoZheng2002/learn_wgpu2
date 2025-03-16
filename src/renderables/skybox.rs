@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use wgpu::{RenderPipeline, util::DeviceExt};
 
 use crate::{
-    cube_texture::CubeTexture, pipelines::{default_pipeline::DefaultPipeline, skybox_pipeline::SkyboxPipeline}, render_context::RenderContext, render_passes::RenderPassType, renderable::Renderable, texture::Texture, vertex::Vertex
+    cube_texture::CubeTexture, pipelines::{default_pipeline::DefaultPipeline, skybox_pipeline::SkyboxPipeline}, render_context::RenderContext, render_passes::RenderPassType, render_pipeline::PipelineCache, renderable::Renderable, texture::Texture, vertex::Vertex
 };
 
 pub struct Skybox{
@@ -23,8 +23,8 @@ impl Skybox{
 
 
 impl Renderable for Skybox {
-    fn choose_pipeline(&self, render_context: &mut RenderContext) -> Arc<(RenderPipeline, RenderPassType)> {
-        render_context.get_pipeline::<SkyboxPipeline>() // 2.
+    fn choose_pipeline(&self, render_context: &RenderContext, pipeline_cache: &mut PipelineCache) -> Arc<(RenderPipeline, RenderPassType)> {
+        pipeline_cache.get_pipeline::<SkyboxPipeline>(render_context) // 2.
         // render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]); // NEW!
         // render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // 3.
         // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);

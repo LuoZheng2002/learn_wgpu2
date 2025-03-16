@@ -10,7 +10,9 @@ use crate::input_context::InputContext;
 use crate::render_context::RenderContext;
 use crate::renderables::cube::Cube;
 use crate::renderables::skybox::Skybox;
+use crate::renderables::ui::UI;
 use crate::state::State;
+use crate::texture::TextureSource;
 
 #[derive(Default)]
 pub struct App {
@@ -37,6 +39,8 @@ impl<'a> ApplicationHandler for App {
         // RENDERABLES.lock().unwrap().push(Box::new(Polygon));
         self.state.renderables.push(Box::new(Cube::new("assets/grass.jpg".to_string())));
         self.state.renderables.push(Box::new(Skybox::new("assets/skybox".to_string())));
+        // self.state.renderables.push(Box::new(UI::new(TextureSource::FilePath("assets/grass.jpg".to_string()))));
+        self.state.renderables.push(Box::new(UI::new(TextureSource::TextCharacter{character: '啊', font_file_path: "assets/KaiTi.ttf".to_string()})));
     }
     fn device_event(
         &mut self,
