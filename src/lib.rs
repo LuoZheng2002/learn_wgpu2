@@ -14,3 +14,4 @@ pub mod vertex;
 pub mod pipelines;
 pub mod cube_texture;
 pub mod textures;
+pub mod render_passes;

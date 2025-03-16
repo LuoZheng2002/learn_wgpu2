@@ -1,11 +1,10 @@
 use wgpu::RenderPipeline;
 
-use crate::{cube_texture::CubeTexture, render_context::RenderContext, render_passes::RenderPassType, render_pipeline::ToPipeline, texture::Texture, vertex::Vertex};
+use crate::{render_context::RenderContext, render_passes::RenderPassType, render_pipeline::ToPipeline, texture::Texture, vertex::Vertex};
 
+pub struct UIPipeline;
 
-pub struct SkyboxPipeline;
-
-impl SkyboxPipeline {
+impl UIPipeline {
     fn create_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
@@ -14,8 +13,8 @@ impl SkyboxPipeline {
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::Cube,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
                     },
                     count: None,
                 },
@@ -24,62 +23,45 @@ impl SkyboxPipeline {
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     // This should match the filterable field of the
                     // corresponding Texture entry above.
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
             ],
             label: Some("texture_bind_group_layout"),
         })
     }
-    fn create_camera_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-            label: Some("view_bind_group_layout"),
-        })
-    }
     fn create_bind_group_layouts(device: &wgpu::Device) -> Vec<wgpu::BindGroupLayout> {
         let texture_bind_group_layout = Self::create_texture_bind_group_layout(device);
-        let camera_bind_group_layout = Self::create_camera_bind_group_layout(device);
-        vec![texture_bind_group_layout, camera_bind_group_layout]
+        vec![texture_bind_group_layout]
     }
 
-    pub fn create_texture_bind_group(device: &wgpu::Device, cube_texture: &CubeTexture) -> wgpu::BindGroup {
+    pub fn create_texture_bind_group(device: &wgpu::Device, texture: &Texture) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &Self::create_texture_bind_group_layout(device),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&cube_texture.view),
+                    resource: wgpu::BindingResource::TextureView(&texture.view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&cube_texture.sampler),
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
                 },
             ],
             label: Some("diffuse_bind_group"),
         })
-    }    
+    }
     pub fn create_bind_groups<'a>(
         render_context: &'a RenderContext,
-        cube_texture: &CubeTexture,
+        texture: &Texture,
         texture_bind_group: &'a mut Option<wgpu::BindGroup>,
     ) -> Vec<&'a wgpu::BindGroup> {
-        *texture_bind_group = Some(Self::create_texture_bind_group(&render_context.device, cube_texture));
-        let camera_bind_group = &render_context.camera_bind_group;
-        vec![texture_bind_group.as_ref().unwrap(), camera_bind_group]
+        *texture_bind_group = Some(Self::create_texture_bind_group(&render_context.device, texture));
+        vec![texture_bind_group.as_ref().unwrap()]
     }
 }
 
-impl ToPipeline for SkyboxPipeline {
+impl ToPipeline for UIPipeline {
     fn create_pipeline(render_context: &RenderContext) -> RenderPipeline {
         let device = &render_context.device;
         let config = &render_context.config;
@@ -94,7 +76,7 @@ impl ToPipeline for SkyboxPipeline {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("skybox.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("ui.wgsl").into()),
         });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -130,13 +112,7 @@ impl ToPipeline for SkyboxPipeline {
                 // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: Texture::DEPTH_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::LessEqual, // 1.
-                stencil: wgpu::StencilState::default(), // 2.
-                bias: wgpu::DepthBiasState::default(),
-            }), // 1.
+            depth_stencil: None, // No depth tests for UIs
             multisample: wgpu::MultisampleState {
                 count: 1,                         // 2.
                 mask: !0,                         // 3.
@@ -148,6 +124,6 @@ impl ToPipeline for SkyboxPipeline {
         render_pipeline
     }
     fn get_render_pass_type() -> RenderPassType {
-        RenderPassType::Opaque3D
+        RenderPassType::UI
     }
 }

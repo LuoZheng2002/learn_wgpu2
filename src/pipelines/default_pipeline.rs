@@ -1,6 +1,6 @@
 use wgpu::RenderPipeline;
 
-use crate::{render_context::RenderContext, render_pipeline::ToPipeline, texture::Texture, vertex::Vertex};
+use crate::{render_context::{self, RenderContext}, render_passes::RenderPassType, render_pipeline::ToPipeline, texture::Texture, vertex::Vertex};
 
 pub struct DefaultPipeline;
 
@@ -51,7 +51,7 @@ impl DefaultPipeline {
         vec![texture_bind_group_layout, camera_bind_group_layout]
     }
 
-    pub fn create_texture_bind_group(device: &wgpu::Device, texture: Texture) -> wgpu::BindGroup {
+    pub fn create_texture_bind_group(device: &wgpu::Device, texture: &Texture) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &Self::create_texture_bind_group_layout(device),
             entries: &[
@@ -67,27 +67,14 @@ impl DefaultPipeline {
             label: Some("diffuse_bind_group"),
         })
     }
-    pub fn create_camera_bind_group(
-        device: &wgpu::Device,
-        camera_buffer: &wgpu::Buffer,
-    ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &Self::create_camera_bind_group_layout(device),
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        })
-    }
-    pub fn create_bind_groups(
-        device: &wgpu::Device,
-        texture: Texture,
-        camera_buffer: &wgpu::Buffer,
-    ) -> Vec<wgpu::BindGroup> {
-        let texture_bind_group = Self::create_texture_bind_group(device, texture);
-        let camera_bind_group = Self::create_camera_bind_group(device, camera_buffer);
-        vec![texture_bind_group, camera_bind_group]
+    pub fn create_bind_groups<'a>(
+        render_context: &'a RenderContext,
+        texture: &Texture,
+        texture_bind_group: &'a mut Option<wgpu::BindGroup>,
+    ) -> Vec<&'a wgpu::BindGroup> {
+        *texture_bind_group = Some(Self::create_texture_bind_group(&render_context.device, texture));
+        let camera_bind_group = &render_context.camera_bind_group;
+        vec![texture_bind_group.as_ref().unwrap(), camera_bind_group]
     }
 }
 
@@ -106,7 +93,7 @@ impl ToPipeline for DefaultPipeline {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("default.wgsl").into()),
         });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -158,5 +145,8 @@ impl ToPipeline for DefaultPipeline {
             cache: None,     // 6.
         });
         render_pipeline
+    }
+    fn get_render_pass_type() -> RenderPassType {
+        RenderPassType::Opaque3D
     }
 }

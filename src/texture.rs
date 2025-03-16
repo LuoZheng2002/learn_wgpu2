@@ -1,5 +1,7 @@
 use image::GenericImageView;
 
+use crate::render_context;
+
 pub struct Texture {
     #[allow(unused)]
     pub texture: wgpu::Texture,
@@ -8,25 +10,16 @@ pub struct Texture {
 }
 
 impl Texture {
-    pub fn from_bytes(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        bytes: &[u8],
-        label: &str,
-    ) -> Result<Self, image::ImageError> {
-        let img = image::load_from_memory(bytes)?;
-        Self::from_image(device, queue, &img, Some(label))
-    }
-
-    pub fn from_image(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        img: &image::DynamicImage,
+    pub fn from_file(
+        file_path: &str,
+        render_context: &render_context::RenderContext,
         label: Option<&str>,
     ) -> Result<Self, image::ImageError> {
+        let device = &render_context.device;
+        let queue = &render_context.queue;
+        let img = image::open(file_path)?;
         let rgba = img.to_rgba8();
         let dimensions = img.dimensions();
-
         let size = wgpu::Extent3d {
             width: dimensions.0,
             height: dimensions.1,

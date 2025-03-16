@@ -8,9 +8,7 @@ use crate::camera::Camera;
 use crate::camera_uniform::CameraUniform;
 use crate::input_context::InputContext;
 use crate::render_context::RenderContext;
-use crate::renderable::RENDERABLES;
 use crate::renderables::cube::Cube;
-use crate::renderables::polygon::Polygon;
 use crate::renderables::skybox::Skybox;
 use crate::state::State;
 
@@ -37,8 +35,8 @@ impl<'a> ApplicationHandler for App {
             .unwrap();
         self.render_context = Some(RenderContext::new(window));
         // RENDERABLES.lock().unwrap().push(Box::new(Polygon));
-        RENDERABLES.lock().unwrap().push(Box::new(Cube));
-        RENDERABLES.lock().unwrap().push(Box::new(Skybox));
+        self.state.renderables.push(Box::new(Cube::new("assets/grass.jpg".to_string())));
+        self.state.renderables.push(Box::new(Skybox::new("assets/skybox".to_string())));
     }
     fn device_event(
         &mut self,
@@ -82,9 +80,9 @@ impl<'a> ApplicationHandler for App {
                 let window = self.get_context().window.clone();
                 self.state.update(&mut self.input_context, window);
                 // take out the render context from self
-                let render_context = self.render_context.take().unwrap();
+                let mut render_context = self.render_context.take().unwrap();
 
-                match render_context.render(&self.state) {
+                match render_context.render(&mut self.state) {
                     Ok(_) => {}
                     // Reconfigure the surface if it's lost or outdated
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {

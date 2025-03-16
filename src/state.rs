@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Instant};
 use cgmath::{InnerSpace, Zero};
 use winit::{keyboard::KeyCode, window::Window};
 
-use crate::{camera::Camera, input_context::InputContext};
+use crate::{camera::Camera, input_context::InputContext, renderable::Renderable};
 
 pub struct State {
     // camera stuff
@@ -15,6 +15,7 @@ pub struct State {
     pub prev_device_mouse_delta: Option<(f64, f64)>,
     pub fps_timer: Instant,
     pub accumulated_frame_num: u32,
+    pub renderables: Vec<Box<dyn Renderable + Send + Sync>>,
 }
 impl State {
     pub fn update(&mut self, input_context: &mut InputContext, window: Arc<Window>) {
@@ -27,8 +28,6 @@ impl State {
         } else {
             self.accumulated_frame_num += 1;
         }
-
-
 
         let current_time = self.timer.elapsed().as_secs_f32();
         let delta_time = current_time - self.prev_time.unwrap_or(current_time);
@@ -218,6 +217,7 @@ impl Default for State {
             prev_device_mouse_delta: None,
             fps_timer: Instant::now(),
             accumulated_frame_num: 0,
+            renderables: Vec::new(),
         }
     }
 }

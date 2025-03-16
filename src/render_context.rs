@@ -5,10 +5,7 @@ use wgpu::{Surface, util::DeviceExt};
 use winit::window::Window;
 
 use crate::{
-    camera::{self, Camera},
-    camera_uniform::{self, CameraUniform},
-    renderable::RENDERABLES,
-    state::State, texture::Texture,
+    camera_uniform::CameraUniform, render_passes::RenderPassType, render_pipeline::{PipelineCache, ToPipeline}, renderable::Renderable, state::State, texture::Texture
 };
 
 pub struct RenderContext {
@@ -19,7 +16,11 @@ pub struct RenderContext {
     pub config: wgpu::SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
     pub camera_buffer: wgpu::Buffer,
+    // most pipelines will use this
+    pub camera_bind_group_layout: wgpu::BindGroupLayout,
+    pub camera_bind_group: wgpu::BindGroup,
     pub depth_texture: Texture,
+    pub pipeline_cache: Option<PipelineCache>,
 }
 
 impl RenderContext {
@@ -108,6 +109,28 @@ impl RenderContext {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let depth_texture = Texture::create_depth_texture(&device, &config, "depth texture");
+
+        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("view_bind_group_layout"),
+        });
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        });
         Self {
             window,
             surface,
@@ -117,6 +140,9 @@ impl RenderContext {
             size,
             camera_buffer,
             depth_texture,
+            camera_bind_group_layout,
+            camera_bind_group,
+            pipeline_cache: Some(PipelineCache::default()),
         }
     }
 
@@ -127,18 +153,37 @@ impl RenderContext {
         self.surface.configure(&self.device, &self.config);
         self.depth_texture = Texture::create_depth_texture(&self.device, &self.config, "depth texture");
     }
-    pub fn render(&self, state: &State) -> Result<(), wgpu::SurfaceError> {
+    pub fn get_pipeline<T: ToPipeline + 'static>(&mut self) -> Arc<(wgpu::RenderPipeline, RenderPassType)> {
+        let mut pipeline_cache = self.pipeline_cache.take().unwrap();
+        let pipeline = pipeline_cache.get_pipeline::<T>(self);
+        self.pipeline_cache = Some(pipeline_cache);
+        pipeline
+    }
+
+    pub fn render(&mut self, state: &mut State) -> Result<(), wgpu::SurfaceError> {
+        // get render target
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        // update camera transform
+        let aspect = self.config.width as f32 / self.config.height as f32;
+        let camera_uniform = CameraUniform::new(&state.camera, aspect, true);
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[camera_uniform]),
+        );
+
+
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
         {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut object_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -164,23 +209,43 @@ impl RenderContext {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            let aspect = self.config.width as f32 / self.config.height as f32;
-            let camera_uniform = CameraUniform::new(&state.camera, aspect, true);
-            self.queue.write_buffer(
-                &self.camera_buffer,
-                0,
-                bytemuck::cast_slice(&[camera_uniform]),
-            );
-
-            for renderable in RENDERABLES.lock().unwrap().iter() {
-                renderable.render(&mut render_pass, &self);
-            }
+            
+            for renderable in state.renderables.iter_mut() {
+                renderable.render(&mut object_render_pass,  self);
+            }            
         }
+        // {
+        //     let mut ui_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        //         label: Some("Render Pass"),
+        //         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+        //             view: &view,
+        //             resolve_target: None,
+        //             ops: wgpu::Operations {
+        //                 load: wgpu::LoadOp::Clear(wgpu::Color {
+        //                     r: 0.1,
+        //                     g: 0.2,
+        //                     b: 0.3,
+        //                     a: 1.0,
+        //                 }),
+        //                 store: wgpu::StoreOp::Store,
+        //             },
+        //         })],
+        //         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+        //             view: &self.depth_texture.view,
+        //             depth_ops: Some(wgpu::Operations {
+        //                 load: wgpu::LoadOp::Clear(1.0),
+        //                 store: wgpu::StoreOp::Store,
+        //             }),
+        //             stencil_ops: None,
+        //         }),
+        //         occlusion_query_set: None,
+        //         timestamp_writes: None,
+        //     });
+        // }
 
         // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
-
         Ok(())
     }
 }
