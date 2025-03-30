@@ -1,6 +1,8 @@
+use std::any::TypeId;
+
 use wgpu::RenderPipeline;
 
-use crate::{render_context::{self, RenderContext}, render_passes::RenderPassType, render_pipeline::ToPipeline, texture::Texture, vertex::Vertex};
+use crate::{my_pipeline::{MyPipeline, PipelineBuilder}, my_texture::MyTexture, render_context::{self, RenderContext}, vertex::Vertex};
 
 pub struct DefaultPipeline;
 
@@ -51,7 +53,7 @@ impl DefaultPipeline {
         vec![texture_bind_group_layout, camera_bind_group_layout]
     }
 
-    pub fn create_texture_bind_group(device: &wgpu::Device, texture: &Texture) -> wgpu::BindGroup {
+    pub fn create_texture_bind_group(device: &wgpu::Device, texture: &MyTexture) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &Self::create_texture_bind_group_layout(device),
             entries: &[
@@ -69,7 +71,7 @@ impl DefaultPipeline {
     }
     pub fn create_bind_groups<'a>(
         render_context: &'a RenderContext,
-        texture: &Texture,
+        texture: &MyTexture,
         texture_bind_group: &'a mut Option<wgpu::BindGroup>,
     ) -> Vec<&'a wgpu::BindGroup> {
         *texture_bind_group = Some(Self::create_texture_bind_group(&render_context.device, texture));
@@ -78,8 +80,8 @@ impl DefaultPipeline {
     }
 }
 
-impl ToPipeline for DefaultPipeline {
-    fn create_pipeline(render_context: &RenderContext) -> RenderPipeline {
+impl PipelineBuilder for DefaultPipeline {
+    fn build_pipeline(&self, render_context: &RenderContext) -> MyPipeline {
         let device = &render_context.device;
         let config = &render_context.config;
         let bind_group_layouts = Self::create_bind_group_layouts(device);
@@ -130,7 +132,7 @@ impl ToPipeline for DefaultPipeline {
                 conservative: false,
             },
             depth_stencil: Some(wgpu::DepthStencilState {
-                format: Texture::DEPTH_FORMAT,
+                format: MyTexture::DEPTH_FORMAT,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::LessEqual, // 1.
                 stencil: wgpu::StencilState::default(), // 2.
@@ -144,9 +146,9 @@ impl ToPipeline for DefaultPipeline {
             multiview: None, // 5.
             cache: None,     // 6.
         });
-        render_pipeline
-    }
-    fn get_render_pass_type() -> RenderPassType {
-        RenderPassType::Opaque3D
+        MyPipeline{
+            pipeline: render_pipeline,
+            render_pass_builder: TypeId::of::<DefaultPipeline>(), // 1. Store the type ID of the pipeline builder for later use.
+        }
     }
 }

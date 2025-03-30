@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::{any::TypeId, collections::{BTreeSet, HashMap, HashSet}, sync::Arc};
 
 use tokio::runtime::Runtime;
 use wgpu::{Surface, util::DeviceExt};
 use winit::window::Window;
 
 use crate::{
-    camera_uniform::CameraUniform, render_passes::{RenderPassType, RenderPasses}, render_pipeline::{PipelineCache, ToPipeline}, renderable::Renderable, state::State, texture::Texture
+    camera_uniform::CameraUniform, my_render_pass::RENDER_PASS_BUILDERS, my_texture::MyTexture, renderable::Renderable, state::State
 };
 
 pub struct RenderContext {
@@ -19,8 +19,7 @@ pub struct RenderContext {
     // most pipelines will use this
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub camera_bind_group: wgpu::BindGroup,
-    pub depth_texture: Texture,
-    pub pipeline_cache: Option<PipelineCache>,
+    pub depth_texture: MyTexture,
 }
 
 impl RenderContext {
@@ -108,7 +107,7 @@ impl RenderContext {
             contents: bytemuck::cast_slice(&[camera_uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        let depth_texture = Texture::create_depth_texture(&device, &config, "depth texture");
+        let depth_texture = MyTexture::create_depth_texture(&device, &config, "depth texture");
 
         let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -142,7 +141,6 @@ impl RenderContext {
             depth_texture,
             camera_bind_group_layout,
             camera_bind_group,
-            pipeline_cache: Some(PipelineCache::default()),
         }
     }
 
@@ -151,13 +149,7 @@ impl RenderContext {
         self.config.width = new_size.width;
         self.config.height = new_size.height;
         self.surface.configure(&self.device, &self.config);
-        self.depth_texture = Texture::create_depth_texture(&self.device, &self.config, "depth texture");
-    }
-    pub fn get_pipeline<T: ToPipeline + 'static>(&mut self) -> Arc<(wgpu::RenderPipeline, RenderPassType)> {
-        let mut pipeline_cache = self.pipeline_cache.take().unwrap();
-        let pipeline = pipeline_cache.get_pipeline::<T>(self);
-        self.pipeline_cache = Some(pipeline_cache);
-        pipeline
+        self.depth_texture = MyTexture::create_depth_texture(&self.device, &self.config, "depth texture");
     }
 
     pub fn render(&mut self, state: &mut State) -> Result<(), wgpu::SurfaceError> {
@@ -182,11 +174,26 @@ impl RenderContext {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-        let mut pipeline_cache = self.pipeline_cache.take().unwrap();
-        let mut render_passes = RenderPasses::new(&mut state.renderables, self, &mut pipeline_cache, Some(&view));
-        render_passes.render(&mut encoder);
-        self.pipeline_cache = Some(pipeline_cache);
         
+        // Begin render passes
+        let mut renderable_refs: HashMap<TypeId, Vec<&mut dyn Renderable>> = HashMap::new();
+        for renderable in state.renderables.iter_mut().map(|renderable|renderable){
+            let render_pass_type = renderable.get_render_pass_builder(self);
+            let renderable_ref = renderable.as_mut();            
+            renderable_refs.entry(render_pass_type).or_insert(vec![]).push(renderable_ref);
+        }
+        let render_pass_types: HashSet<TypeId> = renderable_refs.keys().cloned().collect();
+        for (render_pass_type, render_pass_builder) in &*RENDER_PASS_BUILDERS {
+            if !render_pass_types.contains(&render_pass_type) {
+                // if the render pass type is not in the renderable_refs, we skip it
+                continue;
+            }
+            let mut render_pass = render_pass_builder.create_render_pass(&mut encoder,&view, &self.depth_texture.view);
+            let renderables = renderable_refs.get_mut(&render_pass_type).unwrap();
+            for renderable in renderables {
+                renderable.render(&mut render_pass, self);
+            }
+        }
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
         Ok(())

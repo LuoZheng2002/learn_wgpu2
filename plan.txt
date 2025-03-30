@@ -1,0 +1,25 @@
+
+3D object pipelines: default, transparent, 
+
+
+different render job under different render pass.
+
+game object has a renderable member 
+
+sumbits render job
+
+text is a ui object
+
+do not support perspective related ui
+
+
+ui always overlays on top of game objects 
+
+component update 
+physics system
+
+default value update 
+scripting
+
+
+resource cached includes: pipeline, render_pass, texture, 

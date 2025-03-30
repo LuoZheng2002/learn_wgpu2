@@ -1,6 +1,8 @@
+use std::any::TypeId;
+
 use wgpu::RenderPipeline;
 
-use crate::{render_context::RenderContext, render_passes::RenderPassType, render_pipeline::ToPipeline, texture::Texture, vertex::Vertex};
+use crate::{my_pipeline::{MyPipeline, PipelineBuilder}, my_texture::MyTexture, render_context::RenderContext, render_passes::ui_render_pass::UiRenderPass, vertex::Vertex};
 
 pub struct UIPipeline;
 
@@ -35,7 +37,7 @@ impl UIPipeline {
         vec![texture_bind_group_layout]
     }
 
-    pub fn create_texture_bind_group(device: &wgpu::Device, texture: &Texture) -> wgpu::BindGroup {
+    pub fn create_texture_bind_group(device: &wgpu::Device, texture: &MyTexture) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &Self::create_texture_bind_group_layout(device),
             entries: &[
@@ -53,7 +55,7 @@ impl UIPipeline {
     }
     pub fn create_bind_groups<'a>(
         render_context: &'a RenderContext,
-        texture: &Texture,
+        texture: &MyTexture,
         texture_bind_group: &'a mut Option<wgpu::BindGroup>,
     ) -> Vec<&'a wgpu::BindGroup> {
         *texture_bind_group = Some(Self::create_texture_bind_group(&render_context.device, texture));
@@ -61,8 +63,8 @@ impl UIPipeline {
     }
 }
 
-impl ToPipeline for UIPipeline {
-    fn create_pipeline(render_context: &RenderContext) -> RenderPipeline {
+impl PipelineBuilder for UIPipeline {
+    fn build_pipeline(&self, render_context: &RenderContext) -> crate::my_pipeline::MyPipeline {
         let device = &render_context.device;
         let config = &render_context.config;
         let bind_group_layouts = Self::create_bind_group_layouts(device);
@@ -121,9 +123,9 @@ impl ToPipeline for UIPipeline {
             multiview: None, // 5.
             cache: None,     // 6.
         });
-        render_pipeline
-    }
-    fn get_render_pass_type() -> RenderPassType {
-        RenderPassType::UI
+        MyPipeline {
+            pipeline: render_pipeline,
+            render_pass_builder: TypeId::of::<UiRenderPass>(), // This is the type of render pass that this pipeline will be used for
+        }
     }
 }

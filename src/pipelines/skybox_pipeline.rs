@@ -1,6 +1,8 @@
+use std::any::TypeId;
+
 use wgpu::RenderPipeline;
 
-use crate::{cube_texture::CubeTexture, render_context::RenderContext, render_passes::RenderPassType, render_pipeline::ToPipeline, texture::Texture, vertex::Vertex};
+use crate::{cube_texture::CubeTexture, my_pipeline::{MyPipeline, PipelineBuilder}, my_texture::MyTexture, render_context::RenderContext, render_passes::opauqe3d_render_pass::Opaque3DRenderPass, vertex::Vertex};
 
 
 pub struct SkyboxPipeline;
@@ -79,8 +81,8 @@ impl SkyboxPipeline {
     }
 }
 
-impl ToPipeline for SkyboxPipeline {
-    fn create_pipeline(render_context: &RenderContext) -> RenderPipeline {
+impl PipelineBuilder for SkyboxPipeline {
+    fn build_pipeline(&self, render_context: &RenderContext) -> MyPipeline {
         let device = &render_context.device;
         let config = &render_context.config;
         let bind_group_layouts = Self::create_bind_group_layouts(device);
@@ -131,7 +133,7 @@ impl ToPipeline for SkyboxPipeline {
                 conservative: false,
             },
             depth_stencil: Some(wgpu::DepthStencilState {
-                format: Texture::DEPTH_FORMAT,
+                format: MyTexture::DEPTH_FORMAT,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::LessEqual, // 1.
                 stencil: wgpu::StencilState::default(), // 2.
@@ -145,9 +147,6 @@ impl ToPipeline for SkyboxPipeline {
             multiview: None, // 5.
             cache: None,     // 6.
         });
-        render_pipeline
-    }
-    fn get_render_pass_type() -> RenderPassType {
-        RenderPassType::Opaque3D
+        MyPipeline { pipeline: render_pipeline, render_pass_builder: TypeId::of::<Opaque3DRenderPass>() }
     }
 }

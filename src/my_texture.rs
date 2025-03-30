@@ -6,7 +6,7 @@ use rusttype::{point, Font};
 
 use crate::render_context;
 
-pub struct Texture {
+pub struct MyTexture {
     #[allow(unused)]
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -18,7 +18,7 @@ pub enum TextureSource{
     TextCharacter{character: char, font_file_path: String},
 }
 
-impl Texture {
+impl MyTexture {
     fn load_image_from_file_path(file_path: &str) -> Result<image::ImageBuffer<Rgba<u8>, Vec<u8>>, image::ImageError> {
         let img = image::open(file_path)?;
         Ok(img.to_rgba8())

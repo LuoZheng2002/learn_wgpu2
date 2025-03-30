@@ -12,7 +12,7 @@ use crate::renderables::cube::Cube;
 use crate::renderables::skybox::Skybox;
 use crate::renderables::ui::UI;
 use crate::state::State;
-use crate::texture::TextureSource;
+use crate::my_texture::TextureSource;
 
 #[derive(Default)]
 pub struct App {
