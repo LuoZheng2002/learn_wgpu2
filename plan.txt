@@ -23,3 +23,26 @@ scripting
 
 
 resource cached includes: pipeline, render_pass, texture, 
+
+
+
+we have renderables; renderables can be of different models.
+
+mesh filter
+
+we also have instances; instances must have the same model
+
+
+
+transparent:
+
+renderable can be composed of several instances of the same model (a render call)
+
+instances must have the same model (vertex buffer), texture, ...
+
+instances: model matrix, animation rig positions, ...
+
+renderables can render immuatably
+renderables can increment its instances
+
+model file is a scene

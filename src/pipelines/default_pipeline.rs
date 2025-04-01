@@ -2,7 +2,7 @@ use std::any::TypeId;
 
 use wgpu::RenderPipeline;
 
-use crate::{my_pipeline::{MyPipeline, PipelineBuilder}, my_texture::MyTexture, render_context::{self, RenderContext}, vertex::Vertex};
+use crate::{my_pipeline::{MyPipeline, PipelineBuilder}, my_texture::MyTexture, render_context::{self, RenderContext}, render_passes::opauqe3d_render_pass::Opaque3DRenderPass, vertex::Vertex};
 
 pub struct DefaultPipeline;
 
@@ -71,12 +71,11 @@ impl DefaultPipeline {
     }
     pub fn create_bind_groups<'a>(
         render_context: &'a RenderContext,
-        texture: &MyTexture,
-        texture_bind_group: &'a mut Option<wgpu::BindGroup>,
+        texture: &MyTexture
     ) -> Vec<&'a wgpu::BindGroup> {
-        *texture_bind_group = Some(Self::create_texture_bind_group(&render_context.device, texture));
+        let texture_bind_group = Self::create_texture_bind_group(&render_context.device, texture);
         let camera_bind_group = &render_context.camera_bind_group;
-        vec![texture_bind_group.as_ref().unwrap(), camera_bind_group]
+        vec![texture_bind_group, camera_bind_group]
     }
 }
 
@@ -148,7 +147,7 @@ impl PipelineBuilder for DefaultPipeline {
         });
         MyPipeline{
             pipeline: render_pipeline,
-            render_pass_builder: TypeId::of::<DefaultPipeline>(), // 1. Store the type ID of the pipeline builder for later use.
+            render_pass_builder: TypeId::of::<Opaque3DRenderPass>(), // 1. Store the type ID of the pipeline builder for later use.
         }
     }
 }

@@ -182,9 +182,9 @@ impl RenderContext {
             let renderable_ref = renderable.as_mut();            
             renderable_refs.entry(render_pass_type).or_insert(vec![]).push(renderable_ref);
         }
-        let render_pass_types: HashSet<TypeId> = renderable_refs.keys().cloned().collect();
+        
         for (render_pass_type, render_pass_builder) in &*RENDER_PASS_BUILDERS {
-            if !render_pass_types.contains(&render_pass_type) {
+            if !renderable_refs.contains_key(&render_pass_type) {
                 // if the render pass type is not in the renderable_refs, we skip it
                 continue;
             }
@@ -193,7 +193,10 @@ impl RenderContext {
             for renderable in renderables {
                 renderable.render(&mut render_pass, self);
             }
+            renderable_refs.remove(&render_pass_type); // remove the entry after using it
         }
+        // check if there is any render pass type that is not in RENDER_PASS_BUILDERS
+        assert!(renderable_refs.is_empty(), "There are render pass types that are not in RENDER_PASS_BUILDERS");
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
         Ok(())

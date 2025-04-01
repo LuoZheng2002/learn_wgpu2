@@ -7,12 +7,13 @@ use crate::my_pipeline::MyPipeline;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CacheKey{
     Pipeline(TypeId),
+    BindGroup{pipeline_type: TypeId, renderable_type: TypeId, bind_group_index: u32},
     Placeholder,
 }
 
-
 pub enum CacheValue{
     Pipeline(MyPipeline),
+    BindGroup(Arc<wgpu::BindGroup>),
     Placeholder,
 }
 

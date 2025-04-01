@@ -1,7 +1,7 @@
 use std::{any::TypeId, collections::HashMap, sync::{Arc, Mutex}};
 
 use lazy_static::lazy_static;
-use wgpu::{RenderPipeline, util::DeviceExt};
+use wgpu::util::DeviceExt;
 
 use crate::{
     pipelines::default_pipeline::DefaultPipeline, render_context::RenderContext,  renderable::Renderable, my_texture::{MyTexture, TextureSource}, vertex::Vertex
@@ -9,13 +9,11 @@ use crate::{
 
 pub struct Cube{
     texture_file_path: String,
-    texture_bind_group: Option<wgpu::BindGroup>,
 }
 impl Cube{
     pub fn new(texture_file_path: String) -> Self {
         Self {
             texture_file_path,
-            texture_bind_group: None,
         }
     }
 }
@@ -24,11 +22,6 @@ impl Cube{
 impl Renderable for Cube {
     fn choose_pipeline(&self) -> TypeId {
         TypeId::of::<DefaultPipeline>()
-        // render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]); // NEW!
-        // render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // 3.
-        // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        // render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-
     }
     fn get_vertex_buffer(&self, render_context: &RenderContext) -> Arc<wgpu::Buffer> {
         VERTEX_BUFFER.lock().unwrap().get_or_insert_with(||{
@@ -55,7 +48,7 @@ impl Renderable for Cube {
             let texture = MyTexture::load(TextureSource::FilePath(self.texture_file_path.clone()), render_context, Some("cube texture")).unwrap();
             Arc::new(texture)
         }).clone();
-        let bind_groups: Vec<&'a wgpu::BindGroup> = DefaultPipeline::create_bind_groups(render_context, &texture, &mut self.texture_bind_group);
+        let bind_groups: Vec<&'a wgpu::BindGroup> = DefaultPipeline::create_bind_groups(render_context, &texture);
         bind_groups
     }
     fn get_num_indices(&self) -> u32 {
