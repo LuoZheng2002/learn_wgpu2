@@ -19,7 +19,7 @@ pub struct State {
 }
 impl State {
     pub fn update(&mut self, input_context: &mut InputContext, window: Arc<Window>) {
-        // calculate fps every 1 second
+        // accumulated time// calculate fps every 1 second
         let current_time = self.fps_timer.elapsed().as_secs_f32();
         if current_time >= 1.0 {
             println!("FPS: {}", self.accumulated_frame_num);

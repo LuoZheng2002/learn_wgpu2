@@ -83,23 +83,6 @@ impl RenderContext {
             desired_maximum_frame_latency: 2,
         };
 
-        // camera stuff
-        // let camera = Camera {
-        //     // position the camera 1 unit up and 2 units back
-        //     // +z is out of the screen
-        //     eye: (0.0, 1.0, 2.0).into(),
-        //     // have it look at the origin
-        //     target: (0.0, 0.0, 0.0).into(),
-        //     // which way is "up"
-        //     up: cgmath::Vector3::unit_y(),
-        //     aspect: config.width as f32 / config.height as f32,
-        //     fovy: 45.0,
-        //     znear: 0.1,
-        //     zfar: 100.0,
-        // };
-
-        // let mut camera_uniform = CameraUniform::new();
-        // camera_uniform.update_view_proj(&camera);
         let camera_uniform = CameraUniform::default();
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

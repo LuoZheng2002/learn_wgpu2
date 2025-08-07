@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use wgpu::RenderPipeline;
+use wgpu::{BindGroupLayout, RenderPipeline};
 
 use crate::{my_pipeline::{MyPipeline, PipelineBuilder}, my_texture::MyTexture, render_context::{self, RenderContext}, render_passes::opauqe3d_render_pass::Opaque3DRenderPass, vertex::Vertex};
 
@@ -32,26 +32,6 @@ impl DefaultPipeline {
             label: Some("texture_bind_group_layout"),
         })
     }
-    fn create_camera_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-            label: Some("camera_bind_group_layout"),
-        })
-    }
-    fn create_bind_group_layouts(device: &wgpu::Device) -> Vec<wgpu::BindGroupLayout> {
-        let texture_bind_group_layout = Self::create_texture_bind_group_layout(device);
-        let camera_bind_group_layout = Self::create_camera_bind_group_layout(device);
-        vec![texture_bind_group_layout, camera_bind_group_layout]
-    }
 
     pub fn create_texture_bind_group(device: &wgpu::Device, texture: &MyTexture) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -69,6 +49,31 @@ impl DefaultPipeline {
             label: Some("diffuse_bind_group"),
         })
     }
+    // bind groups like textures should be per-model
+    // bind groups like instance buffers should be per-instance
+
+    // we need an array of models, and for each model an array of instances
+
+    // the drawable should be an instance with model and transform information
+
+    // separate render context and game data (the drawable should only contain the model file location)
+
+    // each model has its bind group of textures, ... etc.
+
+    // skybox has a different pipeline
+
+    // one model, different materials, different render passes, so must rebind information like rigs
+
+    // but file path can no longer be the identifier for a model because there are several meshes
+
+    // it is likely that different pipelines need different render passes, so for each pipeline we create a render pass
+
+    // pipeline.render
+
+    // model is an object instance
+
+
+
     pub fn create_bind_groups<'a>(
         render_context: &'a RenderContext,
         texture: &MyTexture
@@ -83,12 +88,11 @@ impl PipelineBuilder for DefaultPipeline {
     fn build_pipeline(&self, render_context: &RenderContext) -> MyPipeline {
         let device = &render_context.device;
         let config = &render_context.config;
-        let bind_group_layouts = Self::create_bind_group_layouts(device);
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &bind_group_layouts.iter().map(|x| x).collect::<Vec<_>>(),
+                bind_group_layouts: &[&Self::create_texture_bind_group_layout(device), &render_context.camera_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
